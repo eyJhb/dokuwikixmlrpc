@@ -36,12 +36,14 @@ try:
     from urllib import urlencode
     from urllib2 import urlopen
     from urllib2 import URLError
+    from urllib2 import HTTPError
     import xmlrpclib
 # Python 3 imports
 except ImportError:
     from urllib.parse import urlencode
     from urllib.request import urlopen
     from urllib.error import URLError
+    from urllib.error import HTTPError
     import xmlrpc.client as xmlrpclib
 from xml.parsers.expat import ExpatError
 
@@ -104,7 +106,6 @@ class DokuWikiURLError(DokuWikiError):
         return '%s: Could not connect to <%s>' % (self.__class__.__name__,
                                                   self.message)
 
-
 def checkerr(f):
     """Decorator that calls the given function and catches
     :class:`xmlrpclib.Fault` exceptions."""
@@ -134,7 +135,7 @@ class DokuWikiClient(object):
 
     """
 
-    def __init__(self, url, user, passwd, http_basic_auth=False, timeout=10):
+    def __init__(self, url, user, passwd, http_basic_user=False, http_basic_passwd=False, timeout=10):
         """Initalize everything.
 
         Try to get a XML-RPC object. If this step fails a DokuWIKIXMLRPCError
@@ -146,7 +147,8 @@ class DokuWikiClient(object):
         self._url = url
         self._user = user
         self._passwd = passwd
-        self._http_basic_auth = http_basic_auth
+        self._http_basic_user = http_basic_user
+        self._http_basic_passwd = http_basic_passwd
         self._timeout = timeout
         self._user_agent = ' '.join(['DokuWikiXMLRPC ',
                                      __version__,
@@ -158,17 +160,23 @@ class DokuWikiClient(object):
         """Initialize the XMLRPC object."""
         try:
             urlopen(self._url + '/lib/exe/xmlrpc.php?', timeout=self._timeout)
+        except HTTPError as error:
+            if "401" not in str(error):
+                raise DokuWikiURLError(self._url)
         except (ValueError, URLError):
             raise DokuWikiURLError(self._url)
 
         script = '/lib/exe/xmlrpc.php'
 
-        if not self._http_basic_auth:
-            url = ''.join([self._url, script, '?',
+        url = self._url
+
+        if self._http_basic_user and self._http_basic_passwd:
+            proto, url = url.split('://')
+            url = proto + '://' + self._http_basic_user + ':' + self._http_basic_passwd + '@' + url
+
+        if self._user and self._passwd:
+            url = ''.join([url, script, '?',
                            urlencode({'u': self._user, 'p': self._passwd})])
-        else:
-            proto, url = self._url.split('://')
-            url = proto + '://' + self._user + ':' + self._passwd + '@' + url
 
         xmlrpclib.Transport.user_agent = self._user_agent
         xmlrpclib.SafeTransport.user_agent = self._user_agent
