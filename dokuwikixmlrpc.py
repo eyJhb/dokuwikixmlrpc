@@ -271,6 +271,11 @@ class DokuWikiClient(object):
         self._xmlrpc.dokuwiki.appendPage(page_id, text, params)
 
     @checkerr
+    def search(self, search):
+        """List all pages matching a fulltext search."""
+        return self._xmlrpc.dokuwiki.search(search)
+
+    @checkerr
     def pagelist(self, namespace):
         """Lists all pages within a given namespace."""
         return self._xmlrpc.dokuwiki.getPagelist(namespace, {})
